@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.python-version
+.pytest_cache/
+chroma_db/**
+!chroma_db/.gitkeep
+data/processed/*.json
+models/*/
+!.gitkeep
+.DS_Store
