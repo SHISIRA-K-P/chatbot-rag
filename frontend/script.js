@@ -43,7 +43,7 @@ function addMessage(role, text, sources = []) {
   article.className = `message ${role}`;
   const label = document.createElement("div");
   label.className = "message-label";
-  label.textContent = role === "user" ? "YOU" : "PAPERTRAIL · TINYLLAMA";
+  label.textContent = role === "user" ? "YOU" : "PAPERTRAIL · QWEN 2.5 3B";
   const body = document.createElement("div");
   body.className = "message-text";
   body.textContent = text;
