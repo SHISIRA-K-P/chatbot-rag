@@ -1,40 +1,71 @@
-# Papertrail RAG Chatbot
+# Papertrail RAG Agent
 
-A beginner-friendly local PDF chatbot. FastAPI serves the web page and answers questions using the same RAG steps as `chat2.ipynb`: split PDF text into chunks, find the closest chunks with embeddings and ChromaDB, then ask Ollama to write an answer from that context.
+Papertrail answers questions about `Attention Is All You Need.pdf` with a local Qwen model and a Pinecone-backed retrieval pipeline. The agent decides whether to call the paper retrieval tool. The existing FastAPI endpoint and Papertrail UI remain in place.
 
-## Setup
+## Agent Flow
 
-Use Python 3.10 or newer. Open a terminal in this folder and run:
+1. FastAPI passes the user's question to `app/agent.py`.
+2. The Qwen agent uses Ollama tool calling to decide whether the question is about the uploaded paper.
+3. For paper questions, it calls `retrieve_paper_context` in `app/tools.py`.
+4. The tool delegates to the existing `rag.retrieve_documents()` function. That function embeds the query with `intfloat/e5-base-v2` and searches Pinecone.
+5. The existing `rag.generate_answer()` function asks `qwen2.5:3b` through Ollama to answer only from the retrieved passages. The API returns page numbers and excerpts for Papertrail to display.
+6. For questions outside the paper's scope, the agent does not call retrieval and returns a fixed scope response instead of guessing.
+
+Agent, tool, retrieved-passage, and final-answer details are written to the server log.
+
+## Requirements
+
+- Python 3.10 or newer
+- A Pinecone API key
+- Ollama installed and running locally
+- The `qwen2.5:3b` Ollama model
+
+Create a `.env` file in the project root with:
+
+```dotenv
+PINECONE_API_KEY=your_pinecone_api_key
+```
+
+Install Python packages and download the Ollama model:
 
 ```powershell
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-ollama pull tinyllama
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+ollama pull qwen2.5:3b
 ```
 
-The PDF is `data/Attention Is All You Need.pdf`. On the first server start, the app reads it, creates the chunks and embeddings, and saves them in `chroma_db/`. The first run also downloads the embedding model, so it can take a few minutes. Later starts reuse the saved index.
-
-Start the answer API and web page:
+The Pinecone and dotenv dependencies can also be installed directly with:
 
 ```powershell
+pip install "pinecone>=5.0,<11.0" "python-dotenv>=1.0,<2.0"
+```
+
+The first server start loads the PDF and E5 embedding model. If the configured Pinecone index is empty, it chunks the PDF, embeds the chunks, and uploads them. Later starts reuse the existing Pinecone vectors.
+
+## Run
+
+Start Ollama if it is not already running, then from the project root run:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
 uvicorn app.main:app --reload
 ```
 
-Open `http://127.0.0.1:8000`, type a question, and submit it. The frontend sends the question to `POST /api/chat`; the API retrieves matching passages, asks Ollama for an answer, and returns the answer with page excerpts. API docs are at `http://127.0.0.1:8000/docs`.
+Open `http://127.0.0.1:8000`. FastAPI serves the Papertrail page and its assets, as well as the API. Interactive API documentation is at `http://127.0.0.1:8000/docs`.
 
 ## API
 
-- `GET /api/health` checks that the service is running.
-- `GET /api/status` reports whether the notebook created an index.
-- `POST /api/chat` accepts `{"question": "What is attention?", "top_k": 4}` and returns `answer` and `sources`.
+- `GET /api/status` returns the Pinecone vector count and model names.
+- `POST /api/chat` accepts `{"question": "What is attention?", "top_k": 4}`.
+- Chat responses include `answer`, `agent_decision`, and `sources` containing page, score, and excerpt fields.
 
-If the app cannot connect to Ollama, check that Ollama is running and that you pulled the model with `ollama pull tinyllama`.
+## Code Layout
 
-## Files
-
-- `app/main.py`: FastAPI routes used by the frontend.
-- `app/rag.py`: PDF loading, chunking, vector retrieval, and Ollama answer generation.
-- `frontend/`: chat page, styles, and JavaScript API calls.
-- `data/Attention Is All You Need.pdf`: source document.
-- `chroma_db/`: saved vector index, created automatically.
+- `app/main.py`: FastAPI app, UI serving, status, and chat endpoints.
+- `app/agent.py`: Ollama tool-calling agent and decision logging.
+- `app/tools.py`: agent's Pinecone retrieval tool.
+- `app/rag.py`: existing PDF, E5 embedding, Pinecone search, and Ollama answer functions.
+- `frontend/`: unchanged Papertrail HTML, CSS, and JavaScript.
+- `data/Attention Is All You Need.pdf`: source paper.
