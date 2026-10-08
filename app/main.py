@@ -1,9 +1,6 @@
 import logging
-from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from app import rag
@@ -21,9 +18,6 @@ app = FastAPI(
     version="1.0"
 )
 
-FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
-app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
-
 
 # --------------------------------------------------
 # REQUEST MODEL
@@ -40,12 +34,9 @@ class ChatRequest(BaseModel):
 
 @app.on_event("startup")
 def startup_event():
-
-    print("Initializing RAG...")
-
+    logging.info("Initializing RAG...")
     rag.initialize_rag()
-
-    print("RAG initialized successfully.")
+    logging.info("RAG initialized successfully.")
 
 
 # --------------------------------------------------
@@ -54,25 +45,15 @@ def startup_event():
 
 @app.get("/api/status")
 def status():
+    if rag.index is None:
+        raise RuntimeError("RAG is not initialized.")
 
-    vector_count = 0
-
-    try:
-        stats = rag.index.describe_index_stats()
-
-        vector_count = stats.get(
-            "total_vector_count",
-            0
-        )
-
-    except Exception as e:
-
-        return {
-            "status": "error",
-            "indexed": False,
-            "chunks": 0,
-            "message": str(e)
-        }
+    stats = rag.index.describe_index_stats()
+    vector_count = (
+        stats.get("total_vector_count", 0)
+        if isinstance(stats, dict)
+        else getattr(stats, "total_vector_count", 0)
+    )
 
     return {
         "status": "ok",
@@ -117,4 +98,8 @@ def chat(request: ChatRequest):
 
 @app.get("/")
 def home():
-    return FileResponse(FRONTEND_DIR / "index.html")
+    return {
+        "message": "RAG FastAPI backend is running",
+        "frontend": "Run `streamlit run streamlit_app.py` from the project folder.",
+        "docs": "/docs",
+    }

@@ -4,7 +4,7 @@ from typing import Any
 from ollama import chat
 
 from app import rag
-from app.tools import PAPER_RETRIEVAL_TOOL, execute_tool
+from app.tool import PAPER_RETRIEVAL_TOOL, execute_tool
 
 
 logger = logging.getLogger(__name__)

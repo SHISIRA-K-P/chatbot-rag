@@ -50,7 +50,7 @@ def execute_tool(
 
     requested_top_k = arguments.get("top_k", default_top_k)
     if not isinstance(requested_top_k, int):
-        requested_top_k = rag.TOP_K
+        requested_top_k = default_top_k
     top_k = min(max(requested_top_k, 1), 5)
 
     return retrieve_paper_context(query, top_k=top_k)
